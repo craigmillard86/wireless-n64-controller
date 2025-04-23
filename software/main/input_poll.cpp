@@ -63,6 +63,14 @@ int16_t center_y = ANALOG_CENTER;
 int16_t min_y = ANALOG_MIN;
 int16_t max_y = ANALOG_MAX;
 
+// Ensures analog input stays within expected bounds to avoid overflow or reversal
+// when mapping to joystick output range.
+int16_t clamp(int16_t val, int16_t min_val, int16_t max_val) {
+    if (val < min_val) return min_val;
+    if (val > max_val) return max_val;
+    return val;
+}
+
 // Scale x from `in` range to `out` range
 int32_t map(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max) {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
@@ -83,11 +91,17 @@ uint16_t get_analog_raw(adc1_channel_t pin) {
 
 
 // Convert the provided raw analog value to a joystick value (-32767 to 32767) based on minimum, median, and maximum values.
-int16_t analog_to_joystick_value(uint16_t raw, uint16_t min, uint16_t med, uint16_t max) {
+int16_t analog_to_joystick_value(int16_t raw, int16_t min, int16_t med, int16_t max) {
     // Shortcut for min/max values
     if (raw >= max) return JOYSTICK_MAX;
     if (raw <= min) return JOYSTICK_MIN;
-
+    if(SIXPIN_ENABLED)
+        {
+        //Clamp raw to detected range to prevent overflow
+        raw = clamp(raw, min, max);
+        //Update tracking based on center
+        raw = raw - med;
+        }
     // Negative
     if (raw < med) {
         int32_t joystick_val = map(raw, min, med, JOYSTICK_MIN, 0) ;
@@ -101,7 +115,7 @@ int16_t analog_to_joystick_value(uint16_t raw, uint16_t min, uint16_t med, uint1
         }
         //printf("joystick_val val after scaling: %d \n", joystick_val);
         if (joystick_val < JOYSTICK_MIN) return JOYSTICK_MIN;
-        
+
         return (int16_t) joystick_val;
     }
 
@@ -202,7 +216,7 @@ bool poll_joystick() {
 
     // X
     if(SIXPIN_ENABLED){
-    currentXState = analog_to_joystick_value(countx+abs(min_x), min_x+abs(min_x), center_x+abs(min_x), max_x+abs(min_x));
+    currentXState = analog_to_joystick_value(countx, min_x, center_x, max_x);
     }
     else{
     currentXState = analog_to_joystick_value(get_analog_raw(ANALOG_X), min_x, center_x, max_x);
@@ -219,7 +233,7 @@ bool poll_joystick() {
 
     // Y
     if(SIXPIN_ENABLED){
-    currentYState = analog_to_joystick_value(county+abs(min_y), min_y+abs(min_y), center_y+abs(min_y), max_y+abs(min_y));;
+    currentYState = analog_to_joystick_value(county, min_y, center_y, max_y);
     }
     else{
     currentYState = analog_to_joystick_value(get_analog_raw(ANALOG_Y), min_y, center_y, max_y);

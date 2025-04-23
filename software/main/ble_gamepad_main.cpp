@@ -267,11 +267,11 @@ extern "C" {
 void calibrate(bool write_to_storage) {
     const TickType_t xDelay = 10 / portTICK_PERIOD_MS;  // 10ms
 
-    if (SIXPIN_ENABLED){center_x = 0;} else{center_x = get_analog_raw(ANALOG_X);};
+    if (SIXPIN_ENABLED){center_x = countx;} else{center_x = get_analog_raw(ANALOG_X);};
     min_x = center_x;
     max_x = center_x;
 
-    if (SIXPIN_ENABLED){center_y = 0;} else{center_y = get_analog_raw(ANALOG_Y);};
+    if (SIXPIN_ENABLED){center_y = county;} else{center_y = get_analog_raw(ANALOG_Y);};
     min_y = center_y;
     max_y = center_y;
 
@@ -279,19 +279,21 @@ void calibrate(bool write_to_storage) {
     for (int i = 0; i < 1000; i++) {
         int32_t  x;
         if (SIXPIN_ENABLED) {x = countx;} else{x = get_analog_raw(ANALOG_X);};
-        
+
         if (x < min_x) min_x = x;
         if (x > max_x) max_x = x;
 
         int32_t  y;
         if (SIXPIN_ENABLED) {y = county;} else{y = get_analog_raw(ANALOG_Y);};
-       
+
         if (y < min_y) min_y = y;
         if (y > max_y) max_y = y;
 
         vTaskDelay(xDelay);
     }
 
+    center_x = (min_x + max_x)/2;
+    center_y = (min_y + max_y)/2;
     printf("Calibration results:\n");
     printf("X (left, center, right): %d, %d, %d\n", min_x, center_x, max_x);
     printf("Y (up, center, down):    %d, %d, %d\n", min_y, center_y, max_y);
@@ -317,7 +319,8 @@ void app_main(void)
     
     // Get initial button state to enter special modes
     poll_buttons();
-
+    countx = 0;
+    county = 0;
     // Enter calibration mode if `START` is being pressed
     if (currentButtonStates[6]) {
         current_state = STATE_CALIBRATION;
@@ -338,13 +341,14 @@ void app_main(void)
         printf("    X: %d, %d, %d\n", min_x, center_x, max_x);
         printf("    Y: %d, %d, %d\n", min_y, center_y, max_y);
     }
-
+    
     printf("Initial setup complete!\n");
     
     startup_routine_running = false;
     current_state = STATE_RUNNING;
     setup_poll_task();
-
+    //Set center to current postition of stick
+    if (SIXPIN_ENABLED){center_y = county; center_x = countx;}
     /* Print chip information */
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
